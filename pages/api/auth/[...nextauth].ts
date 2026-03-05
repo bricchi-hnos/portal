@@ -12,7 +12,8 @@ export const authOptions: NextAuthOptions = {
     EmailProvider({
       server: {
         host: process.env.EMAIL_SERVER_HOST,
-        port: Number(process.env.EMAIL_SERVER_PORT || 465),
+        port: 465,
+        secure: true,
         auth: {
           user: process.env.EMAIL_SERVER_USER,
           pass: process.env.EMAIL_SERVER_PASSWORD,
@@ -20,10 +21,18 @@ export const authOptions: NextAuthOptions = {
       },
       from: process.env.EMAIL_FROM,
       async sendVerificationRequest({ identifier: email, url, provider }) {
-        const transport = createTransport(provider.server);
+        const transport = createTransport({
+          host: process.env.EMAIL_SERVER_HOST,
+          port: 465,
+          secure: true,
+          auth: {
+            user: process.env.EMAIL_SERVER_USER,
+            pass: process.env.EMAIL_SERVER_PASSWORD,
+          },
+        });
         await transport.sendMail({
           to: email,
-          from: provider.from,
+          from: process.env.EMAIL_FROM,
           subject: "Acceso al portal de dashboards — Bricchi Hnos.",
           html: `
             <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px;background:#0d1520;color:#e2e8f0;border-radius:12px;">
