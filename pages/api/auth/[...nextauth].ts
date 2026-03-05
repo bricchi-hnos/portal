@@ -53,17 +53,20 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
-    async signIn({ user }) {
+    async signIn({ user, email: emailObj }) {
+      // Allow verification requests (the email sending step)
+      if (emailObj?.verificationRequest) return true;
+      
       const ALLOWED_EMAILS = (process.env.ALLOWED_EMAILS || "")
         .split(",")
         .map((e) => e.trim().toLowerCase())
         .filter(Boolean);
-      const email = user.email?.toLowerCase() || "";
-      return ALLOWED_EMAILS.includes(email);
+      const userEmail = user.email?.toLowerCase() || "";
+      return ALLOWED_EMAILS.length === 0 || ALLOWED_EMAILS.includes(userEmail);
     },
-    async session({ session, token }) {
+    async session({ session, user }) {
       if (session.user) {
-        (session.user as any).id = token.sub;
+        (session.user as any).id = user.id;
       }
       return session;
     },
