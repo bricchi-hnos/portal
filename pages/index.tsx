@@ -5,18 +5,20 @@ import { useDropzone } from "react-dropzone";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 
-// ── Areas ────────────────────────────────────────────────────────────────────
+const LOGO_URL = "https://www.bricchihnos.com/assets/bricchi-hnos-logotype.png";
+const DASHBOARDS_BASE = "https://dashboards-br.vercel.app";
+
 const AREAS = [
-  { value: "maquinarias",                label: "Maquinarias",   group: null },
-  { value: "repuestos",                  label: "Repuestos",     group: null },
-  { value: "administracion/contable",    label: "Contable",      group: "Administración" },
-  { value: "administracion/financiera",  label: "Financiera",    group: "Administración" },
-  { value: "administracion/impositiva",  label: "Impositiva",    group: "Administración" },
-  { value: "administracion/rrhh",        label: "RRHH",          group: "Administración" },
+  { value: "maquinarias",                label: "Maquinarias",   icon: "🚜", group: null },
+  { value: "repuestos",                  label: "Repuestos",     icon: "🔧", group: null },
+  { value: "administracion/contable",    label: "Contable",      icon: "📒", group: "Administración" },
+  { value: "administracion/financiera",  label: "Financiera",    icon: "📊", group: "Administración" },
+  { value: "administracion/impositiva",  label: "Impositiva",    icon: "🧾", group: "Administración" },
+  { value: "administracion/rrhh",        label: "RRHH",          icon: "👥", group: "Administración" },
 ];
 
 type DashboardType = "static" | "embed" | "app";
-type Tab = "upload" | "audit";
+type Tab = "home" | "upload" | "audit";
 
 interface AuditEntry {
   id: string; slug: string; area: string; dashboard_type: string;
@@ -25,122 +27,86 @@ interface AuditEntry {
   assets_count: number; created_at: string;
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
 function slugify(text: string) {
   return text.toLowerCase().normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
-
 function toBase64(file: File): Promise<string> {
   return new Promise((res, rej) => {
     const r = new FileReader();
     r.onload = () => res((r.result as string).split(",")[1]);
-    r.onerror = rej;
-    r.readAsDataURL(file);
+    r.onerror = rej; r.readAsDataURL(file);
   });
 }
 
 const ALLOWED_EXT = [".html",".htm",".css",".js",".json",".csv",".png",".jpg",".jpeg",".svg",".webp",".gif"];
 
-// ── Styles ────────────────────────────────────────────────────────────────────
-const C = {
-  page:    { minHeight:"100vh", background:"#0d1520", color:"#e2e8f0", fontFamily:"'Segoe UI', system-ui, sans-serif" } as React.CSSProperties,
-  header:  { background:"rgba(255,255,255,0.03)", borderBottom:"1px solid rgba(255,255,255,0.08)", padding:"0 32px", display:"flex", alignItems:"center", justifyContent:"space-between", height:"60px" } as React.CSSProperties,
-  main:    { padding:"40px 32px", maxWidth:"760px" } as React.CSSProperties,
-  label:   { display:"block", fontSize:"12px", color:"#8a9bb0", marginBottom:"6px", textTransform:"uppercase" as const, letterSpacing:"0.5px" },
-  input:   { width:"100%", boxSizing:"border-box" as const, background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:"8px", color:"#e2e8f0", padding:"10px 12px", fontSize:"14px" },
-  card:    { background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.07)", borderRadius:"10px", padding:"16px 20px" } as React.CSSProperties,
-};
-
-// ── Type badge ────────────────────────────────────────────────────────────────
-function TypeBadge({ type }: { type: string }) {
-  const map: Record<string, [string, string]> = {
-    static: ["#3b82f6","ZIP / HTML"],
-    embed:  ["#8b5cf6","Embed"],
-    app:    ["#10b981","App"],
-  };
-  const [color, label] = map[type] || ["#6b7280", type];
-  return (
-    <span style={{ background:`${color}22`, color, fontSize:"11px", padding:"2px 8px", borderRadius:"4px", marginRight:"6px" }}>
-      {label}
-    </span>
-  );
+// Área label from value
+function areaLabel(val: string) {
+  const a = AREAS.find(x => x.value === val);
+  return a ? `${a.icon} ${a.group ? a.group + " / " : ""}${a.label}` : val;
 }
 
-// ── Main ──────────────────────────────────────────────────────────────────────
 export default function Home() {
   const { data: session, status } = useSession();
   const router = useRouter();
-
-  const [tab, setTab]           = useState<Tab>("upload");
-  const [dtype, setDtype]       = useState<DashboardType>("static");
-  const [area, setArea]         = useState("maquinarias");
-  const [slug, setSlug]         = useState("");
+  const [tab, setTab] = useState<Tab>("home");
+  const [dtype, setDtype] = useState<DashboardType>("static");
+  const [area, setArea] = useState("maquinarias");
+  const [slug, setSlug] = useState("");
   const [embedUrl, setEmbedUrl] = useState("");
   const [embedTitle, setEmbedTitle] = useState("");
-
-  // Static upload state
-  const [files, setFiles]       = useState<File[]>([]);
-  const [zipFile, setZipFile]   = useState<File | null>(null);
-  const [useZip, setUseZip]     = useState(true);
-
+  const [zipFile, setZipFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
+  const [useZip, setUseZip] = useState(true);
   const [uploading, setUploading] = useState(false);
-  const [result, setResult]     = useState<{ url: string; commitSha: string } | null>(null);
-  const [error, setError]       = useState("");
+  const [result, setResult] = useState<{ url: string; commitSha: string } | null>(null);
+  const [error, setError] = useState("");
   const [auditLog, setAuditLog] = useState<AuditEntry[]>([]);
   const [loadingAudit, setLoadingAudit] = useState(false);
+  const [expandedAreas, setExpandedAreas] = useState<Record<string, boolean>>({
+    maquinarias: true, repuestos: true, "Administración": true,
+  });
 
   useEffect(() => { if (status === "unauthenticated") router.push("/login"); }, [status, router]);
 
-  // ── Dropzone for ZIP ──────────────────────────────────────────────────────
   const onDropZip = useCallback((accepted: File[]) => {
     if (accepted[0]) { setZipFile(accepted[0]); setResult(null); setError(""); }
   }, []);
   const dzZip = useDropzone({ onDrop: onDropZip, accept: { "application/zip": [".zip"] }, maxFiles: 1 });
 
-  // ── Dropzone for individual files ─────────────────────────────────────────
   const onDropFiles = useCallback((accepted: File[]) => {
     const valid = accepted.filter(f => ALLOWED_EXT.some(e => f.name.toLowerCase().endsWith(e)));
     setFiles(valid); setResult(null); setError("");
     const html = valid.find(f => f.name.endsWith(".html"));
     if (html && !slug) setSlug(slugify(html.name.replace(/\.html?$/, "")));
   }, [slug]);
-  const dzFiles = useDropzone({ onDrop: onDropFiles, accept: { "text/html":[".html",".htm"], "text/css":[".css"], "application/javascript":[".js"], "application/json":[".json"], "text/csv":[".csv"], "image/*":[".png",".jpg",".jpeg",".svg",".webp",".gif"] } });
+  const dzFiles = useDropzone({ onDrop: onDropFiles });
 
-  // ── Upload handler ────────────────────────────────────────────────────────
   async function handleUpload() {
     setUploading(true); setError(""); setResult(null);
     try {
       let body: Record<string, any> = { type: dtype, area, slug: slugify(slug) };
-
       if (dtype === "static") {
         if (useZip) {
           if (!zipFile) throw new Error("Seleccioná un archivo ZIP");
-          const zipContent = await toBase64(zipFile);
-          body.zipContent = zipContent;
+          body.zipContent = await toBase64(zipFile);
         } else {
           if (!files.length) throw new Error("Seleccioná archivos");
-          const encoded = await Promise.all(
-            files.map(async f => ({ path: f.name, content: await toBase64(f) }))
-          );
-          body.files = encoded;
+          body.files = await Promise.all(files.map(async f => ({ path: f.name, content: await toBase64(f) })));
         }
       } else {
-        if (!embedUrl.trim()) throw new Error("Ingresá la URL del embed");
-        body.embedUrl   = embedUrl.trim();
+        if (!embedUrl.trim()) throw new Error("Ingresá la URL");
+        body.embedUrl = embedUrl.trim();
         body.embedTitle = embedTitle.trim() || slug;
       }
-
-      const res  = await fetch("/api/upload", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body) });
+      const res = await fetch("/api/upload", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Error desconocido");
       setResult(data);
       setFiles([]); setZipFile(null); setSlug(""); setEmbedUrl(""); setEmbedTitle("");
-    } catch (e: any) {
-      setError(e.message);
-    } finally {
-      setUploading(false);
-    }
+    } catch (e: any) { setError(e.message); }
+    finally { setUploading(false); }
   }
 
   async function loadAudit() {
@@ -149,229 +115,374 @@ export default function Home() {
     catch { setAuditLog([]); }
     finally { setLoadingAudit(false); }
   }
-  useEffect(() => { if (tab === "audit") loadAudit(); }, [tab]);
+  useEffect(() => { if (tab === "audit") loadAudit(); if (tab === "home") loadAudit(); }, [tab]);
 
   const canSubmit = !uploading && !!slug && (
-    dtype !== "static" ? !!embedUrl.trim() :
-    useZip ? !!zipFile : !!files.length
+    dtype !== "static" ? !!embedUrl.trim() : useZip ? !!zipFile : !!files.length
   );
+
+  // Group audit by area for home view
+  const byArea: Record<string, AuditEntry[]> = {};
+  auditLog.forEach(e => {
+    if (!byArea[e.area]) byArea[e.area] = [];
+    byArea[e.area].push(e);
+  });
 
   if (status === "loading" || !session) return null;
 
+  const ROOT_AREAS = AREAS.filter(a => !a.group);
+  const ADMIN_AREAS = AREAS.filter(a => a.group === "Administración");
+
   return (
-    <div style={C.page}>
+    <div style={{ minHeight: "100vh", background: "#F5F6FA", fontFamily: "'Segoe UI', system-ui, sans-serif", color: "#1a1a2e" }}>
+
       {/* Header */}
-      <header style={C.header}>
-        <div style={{ display:"flex", alignItems:"center", gap:"12px" }}>
-          <span style={{ fontSize:"20px" }}>⚙️</span>
-          <span style={{ fontWeight:"700", fontSize:"16px", color:"#f0e6d3" }}>Bricchi</span>
-          <span style={{ color:"#4a5568", fontSize:"14px" }}>/ Dashboards</span>
+      <header style={{
+        background: "#fff",
+        borderBottom: "3px solid #C0392B",
+        padding: "0 32px",
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        height: "64px",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+          <img src={LOGO_URL} alt="Bricchi Hnos." style={{ height: "36px", objectFit: "contain" }}
+            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+          <div style={{ width: "1px", height: "28px", background: "#e0e0e0" }} />
+          <span style={{ fontSize: "14px", fontWeight: "600", color: "#2C3E50" }}>Portal de Dashboards</span>
         </div>
-        <div style={{ display:"flex", alignItems:"center", gap:"16px" }}>
-          <span style={{ color:"#8a9bb0", fontSize:"13px" }}>{session.user?.name || session.user?.email}</span>
-          <button onClick={() => signOut({ callbackUrl:"/login" })} style={{ background:"transparent", border:"1px solid rgba(255,255,255,0.1)", borderRadius:"6px", color:"#8a9bb0", padding:"6px 12px", fontSize:"12px", cursor:"pointer" }}>
-            Salir
-          </button>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <span style={{ fontSize: "13px", color: "#7F8C8D" }}>{session.user?.name || session.user?.email}</span>
+          <button onClick={() => signOut({ callbackUrl: "/login" })} style={{
+            background: "transparent", border: "1px solid #ddd", borderRadius: "6px",
+            color: "#7F8C8D", padding: "6px 14px", fontSize: "12px", cursor: "pointer",
+          }}>Salir</button>
         </div>
       </header>
 
-      {/* Tabs */}
-      <div style={{ borderBottom:"1px solid rgba(255,255,255,0.07)", padding:"0 32px", display:"flex" }}>
-        {(["upload","audit"] as Tab[]).map(t => (
-          <button key={t} onClick={() => setTab(t)} style={{ background:"transparent", border:"none", borderBottom: tab===t ? "2px solid #c8971e" : "2px solid transparent", color: tab===t ? "#c8971e" : "#6b7280", padding:"16px 20px", fontSize:"14px", fontWeight: tab===t ? "600":"400", cursor:"pointer" }}>
-            {t === "upload" ? "📤  Publicar Dashboard" : "📋  Auditoría"}
-          </button>
+      {/* Nav Tabs */}
+      <div style={{ background: "#fff", borderBottom: "1px solid #e8e8e8", padding: "0 32px", display: "flex" }}>
+        {([
+          ["home",  "🏠  Inicio"],
+          ["upload","📤  Publicar"],
+          ["audit", "📋  Auditoría"],
+        ] as [Tab, string][]).map(([t, label]) => (
+          <button key={t} onClick={() => setTab(t)} style={{
+            background: "transparent", border: "none",
+            borderBottom: tab === t ? "3px solid #C0392B" : "3px solid transparent",
+            color: tab === t ? "#C0392B" : "#7F8C8D",
+            padding: "14px 20px", fontSize: "13px",
+            fontWeight: tab === t ? "700" : "400",
+            cursor: "pointer", transition: "color 0.15s",
+          }}>{label}</button>
         ))}
       </div>
 
-      <main style={C.main}>
+      <main style={{ padding: "32px", maxWidth: "900px" }}>
+
+        {/* ── HOME ── */}
+        {tab === "home" && (
+          <>
+            <h2 style={{ fontSize: "20px", fontWeight: "700", color: "#2C3E50", marginBottom: "6px" }}>
+              Dashboards publicados
+            </h2>
+            <p style={{ color: "#7F8C8D", fontSize: "13px", marginBottom: "28px" }}>
+              Hacé click en cualquier tablero para abrirlo en una nueva pestaña.
+            </p>
+
+            {loadingAudit ? (
+              <p style={{ color: "#aaa" }}>Cargando...</p>
+            ) : auditLog.length === 0 ? (
+              <div style={{
+                background: "#fff", border: "2px dashed #e0e0e0", borderRadius: "12px",
+                padding: "48px", textAlign: "center",
+              }}>
+                <div style={{ fontSize: "40px", marginBottom: "12px" }}>📊</div>
+                <p style={{ color: "#aaa", fontSize: "14px" }}>No hay dashboards publicados aún.</p>
+                <button onClick={() => setTab("upload")} style={{
+                  marginTop: "16px", background: "#C0392B", border: "none", borderRadius: "8px",
+                  color: "#fff", padding: "10px 24px", fontSize: "13px", fontWeight: "600", cursor: "pointer",
+                }}>Publicar el primero</button>
+              </div>
+            ) : (
+              <>
+                {/* Root areas */}
+                {ROOT_AREAS.map(areaObj => {
+                  const items = byArea[areaObj.value] || [];
+                  const isOpen = expandedAreas[areaObj.value] !== false;
+                  return (
+                    <div key={areaObj.value} style={{ marginBottom: "24px" }}>
+                      <button onClick={() => setExpandedAreas(p => ({ ...p, [areaObj.value]: !isOpen }))}
+                        style={{
+                          display: "flex", alignItems: "center", gap: "8px",
+                          background: "transparent", border: "none", cursor: "pointer",
+                          fontSize: "15px", fontWeight: "700", color: "#2C3E50",
+                          marginBottom: "12px", padding: 0,
+                        }}>
+                        <span style={{ color: "#C0392B" }}>{isOpen ? "▾" : "▸"}</span>
+                        <span>{areaObj.icon} {areaObj.label}</span>
+                        <span style={{ fontSize: "11px", color: "#aaa", fontWeight: "400" }}>({items.length})</span>
+                      </button>
+                      {isOpen && (
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "12px" }}>
+                          {items.length === 0 ? (
+                            <p style={{ color: "#ccc", fontSize: "13px", gridColumn: "1/-1" }}>Sin dashboards en esta área.</p>
+                          ) : items.map(e => (
+                            <a key={e.id} href={e.dashboard_url} target="_blank" rel="noreferrer"
+                              style={{ textDecoration: "none" }}>
+                              <div style={{
+                                background: "#fff", border: "1px solid #e8e8e8", borderRadius: "10px",
+                                padding: "14px 16px", cursor: "pointer", transition: "all 0.15s",
+                                borderLeft: "4px solid #C0392B",
+                              }}
+                                onMouseOver={e2 => (e2.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,0.1)")}
+                                onMouseOut={e2 => (e2.currentTarget.style.boxShadow = "none")}
+                              >
+                                <div style={{ fontSize: "13px", fontWeight: "700", color: "#2C3E50", marginBottom: "4px" }}>{e.slug}</div>
+                                <div style={{ fontSize: "11px", color: "#aaa" }}>
+                                  {e.created_at ? formatDistanceToNow(new Date(e.created_at), { addSuffix: true, locale: es }) : "—"}
+                                </div>
+                                <div style={{ fontSize: "11px", color: "#aaa", marginTop: "2px" }}>por {e.uploader_name}</div>
+                              </div>
+                            </a>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {/* Administración group */}
+                {ADMIN_AREAS.some(a => (byArea[a.value] || []).length > 0) && (
+                  <div style={{ marginBottom: "24px" }}>
+                    <button onClick={() => setExpandedAreas(p => ({ ...p, "Administración": !(p["Administración"] !== false) }))}
+                      style={{
+                        display: "flex", alignItems: "center", gap: "8px",
+                        background: "transparent", border: "none", cursor: "pointer",
+                        fontSize: "15px", fontWeight: "700", color: "#2C3E50",
+                        marginBottom: "12px", padding: 0,
+                      }}>
+                      <span style={{ color: "#C0392B" }}>{expandedAreas["Administración"] !== false ? "▾" : "▸"}</span>
+                      <span>🏢 Administración</span>
+                    </button>
+                    {expandedAreas["Administración"] !== false && ADMIN_AREAS.map(areaObj => {
+                      const items = byArea[areaObj.value] || [];
+                      if (!items.length) return null;
+                      return (
+                        <div key={areaObj.value} style={{ marginLeft: "20px", marginBottom: "16px" }}>
+                          <div style={{ fontSize: "13px", fontWeight: "600", color: "#7F8C8D", marginBottom: "8px" }}>
+                            {areaObj.icon} {areaObj.label}
+                          </div>
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "10px" }}>
+                            {items.map(e => (
+                              <a key={e.id} href={e.dashboard_url} target="_blank" rel="noreferrer" style={{ textDecoration: "none" }}>
+                                <div style={{
+                                  background: "#fff", border: "1px solid #e8e8e8", borderRadius: "10px",
+                                  padding: "12px 14px", cursor: "pointer",
+                                  borderLeft: "4px solid #F39C12",
+                                }}
+                                  onMouseOver={e2 => (e2.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,0.1)")}
+                                  onMouseOut={e2 => (e2.currentTarget.style.boxShadow = "none")}
+                                >
+                                  <div style={{ fontSize: "13px", fontWeight: "700", color: "#2C3E50", marginBottom: "4px" }}>{e.slug}</div>
+                                  <div style={{ fontSize: "11px", color: "#aaa" }}>
+                                    {e.created_at ? formatDistanceToNow(new Date(e.created_at), { addSuffix: true, locale: es }) : "—"}
+                                  </div>
+                                </div>
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
+            )}
+          </>
+        )}
+
+        {/* ── UPLOAD ── */}
         {tab === "upload" && (
           <>
-            <h2 style={{ fontSize:"22px", fontWeight:"700", marginBottom:"6px", color:"#f0e6d3" }}>Publicar nuevo dashboard</h2>
-            <p style={{ color:"#6b7280", fontSize:"14px", marginBottom:"28px" }}>Elegí el tipo y completá los datos. Se publica automáticamente via GitHub.</p>
+            <h2 style={{ fontSize: "20px", fontWeight: "700", color: "#2C3E50", marginBottom: "6px" }}>Publicar nuevo dashboard</h2>
+            <p style={{ color: "#7F8C8D", fontSize: "13px", marginBottom: "24px" }}>
+              Elegí el tipo, completá los datos y publicá. Se despliega automáticamente via GitHub (~60s).
+            </p>
 
             {/* Type selector */}
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:"10px", marginBottom:"24px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "12px", marginBottom: "24px" }}>
               {([
-                ["static","📁","ZIP / HTML","Subí un ZIP con index.html + assets"],
-                ["embed","🔗","Embed link","Power BI, Excel Online, OneDrive..."],
-                ["app","🚀","App externa","Streamlit, Metabase, cualquier URL"],
+                ["static","📁","ZIP / HTML","Dashboard estático con index.html"],
+                ["embed","🔗","Embed link","Power BI, Excel Online, OneDrive"],
+                ["app","🚀","App externa","Streamlit, Metabase u otra URL"],
               ] as [DashboardType,string,string,string][]).map(([val,icon,label,desc]) => (
                 <button key={val} onClick={() => setDtype(val)} style={{
-                  background: dtype===val ? "rgba(200,151,30,0.12)" : "rgba(255,255,255,0.03)",
-                  border: `1px solid ${dtype===val ? "#c8971e" : "rgba(255,255,255,0.08)"}`,
-                  borderRadius:"10px", padding:"14px 12px", cursor:"pointer", textAlign:"left",
+                  background: dtype === val ? "#FEF9F0" : "#fff",
+                  border: `2px solid ${dtype === val ? "#C0392B" : "#e8e8e8"}`,
+                  borderRadius: "10px", padding: "14px", cursor: "pointer", textAlign: "left",
+                  transition: "all 0.15s",
                 }}>
-                  <div style={{ fontSize:"20px", marginBottom:"6px" }}>{icon}</div>
-                  <div style={{ color: dtype===val ? "#c8971e" : "#e2e8f0", fontSize:"13px", fontWeight:"600", marginBottom:"3px" }}>{label}</div>
-                  <div style={{ color:"#4a5568", fontSize:"11px" }}>{desc}</div>
+                  <div style={{ fontSize: "22px", marginBottom: "6px" }}>{icon}</div>
+                  <div style={{ fontSize: "13px", fontWeight: "700", color: dtype === val ? "#C0392B" : "#2C3E50", marginBottom: "3px" }}>{label}</div>
+                  <div style={{ fontSize: "11px", color: "#aaa" }}>{desc}</div>
                 </button>
               ))}
             </div>
 
             {/* Area + Slug */}
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"16px", marginBottom:"20px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "20px" }}>
               <div>
-                <label style={C.label}>Área</label>
-                <select value={area} onChange={e => setArea(e.target.value)} style={C.input}>
-                  {AREAS.filter(a => !a.group).map(a => (
-                    <option key={a.value} value={a.value} style={{ background:"#1a2940" }}>{a.label}</option>
-                  ))}
-                  {(() => {
-                    const groups = Array.from(new Set(AREAS.filter(a => a.group).map(a => a.group)));
-                    return groups.map(g => (
-                      <optgroup key={g} label={g!} style={{ background:"#1a2940" }}>
-                        {AREAS.filter(a => a.group === g).map(a => (
-                          <option key={a.value} value={a.value} style={{ background:"#1a2940" }}>{a.label}</option>
-                        ))}
-                      </optgroup>
-                    ));
-                  })()}
+                <label style={{ display: "block", fontSize: "11px", fontWeight: "700", color: "#7F8C8D", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Área</label>
+                <select value={area} onChange={e => setArea(e.target.value)} style={{
+                  width: "100%", background: "#fff", border: "1px solid #ddd", borderRadius: "8px",
+                  color: "#2C3E50", padding: "10px 12px", fontSize: "13px",
+                }}>
+                  {ROOT_AREAS.map(a => <option key={a.value} value={a.value}>{a.icon} {a.label}</option>)}
+                  <optgroup label="Administración">
+                    {ADMIN_AREAS.map(a => <option key={a.value} value={a.value}>{a.icon} {a.label}</option>)}
+                  </optgroup>
                 </select>
               </div>
               <div>
-                <label style={C.label}>Nombre (slug)</label>
-                <input type="text" value={slug} onChange={e => setSlug(slugify(e.target.value))} placeholder="ej: ventas-mensual" style={C.input} />
-                {slug && <p style={{ color:"#4a5568", fontSize:"11px", marginTop:"4px" }}>URL: /{area}/{slug}/</p>}
+                <label style={{ display: "block", fontSize: "11px", fontWeight: "700", color: "#7F8C8D", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Nombre (slug)</label>
+                <input type="text" value={slug} onChange={e => setSlug(slugify(e.target.value))}
+                  placeholder="ej: ventas-mensual" style={{
+                    width: "100%", boxSizing: "border-box", background: "#fff",
+                    border: "1px solid #ddd", borderRadius: "8px", color: "#2C3E50",
+                    padding: "10px 12px", fontSize: "13px",
+                  }} />
+                {slug && <p style={{ color: "#aaa", fontSize: "11px", marginTop: "4px" }}>URL: /{area}/{slug}/</p>}
               </div>
             </div>
 
-            {/* Static upload */}
+            {/* Static */}
             {dtype === "static" && (
               <>
-                {/* Toggle ZIP / files */}
-                <div style={{ display:"flex", gap:"8px", marginBottom:"16px" }}>
+                <div style={{ display: "flex", gap: "8px", marginBottom: "14px" }}>
                   {[true, false].map(z => (
                     <button key={String(z)} onClick={() => setUseZip(z)} style={{
-                      padding:"7px 16px", borderRadius:"6px", fontSize:"13px", cursor:"pointer",
-                      background: useZip===z ? "rgba(200,151,30,0.15)" : "transparent",
-                      border: `1px solid ${useZip===z ? "#c8971e" : "rgba(255,255,255,0.1)"}`,
-                      color: useZip===z ? "#c8971e" : "#6b7280",
+                      padding: "7px 16px", borderRadius: "6px", fontSize: "12px", cursor: "pointer",
+                      background: useZip === z ? "#FEF9F0" : "#fff",
+                      border: `1px solid ${useZip === z ? "#C0392B" : "#ddd"}`,
+                      color: useZip === z ? "#C0392B" : "#7F8C8D", fontWeight: useZip === z ? "600" : "400",
                     }}>
                       {z ? "📦 Subir ZIP (recomendado)" : "📄 Archivos individuales"}
                     </button>
                   ))}
                 </div>
 
-                {useZip ? (
-                  <div {...dzZip.getRootProps()} style={{
-                    border:`2px dashed ${dzZip.isDragActive ? "#c8971e" : "rgba(255,255,255,0.12)"}`,
-                    borderRadius:"12px", padding:"40px", textAlign:"center", cursor:"pointer",
-                    background: dzZip.isDragActive ? "rgba(200,151,30,0.05)" : "rgba(255,255,255,0.02)",
-                    marginBottom:"16px", transition:"all 0.2s",
-                  }}>
-                    <input {...dzZip.getInputProps()} />
-                    <div style={{ fontSize:"32px", marginBottom:"10px" }}>{zipFile ? "📦" : "⬆️"}</div>
-                    {zipFile ? (
-                      <p style={{ color:"#4ade80", fontSize:"14px" }}>{zipFile.name} ({(zipFile.size/1024).toFixed(1)} KB)</p>
-                    ) : (
-                      <>
-                        <p style={{ color:"#e2e8f0", fontSize:"14px", marginBottom:"4px" }}>Arrastrá el ZIP o hacé click</p>
-                        <p style={{ color:"#4a5568", fontSize:"12px" }}>El ZIP debe tener index.html en la raíz</p>
-                      </>
-                    )}
+                <div {...(useZip ? dzZip.getRootProps() : dzFiles.getRootProps())} style={{
+                  border: `2px dashed ${(useZip ? dzZip.isDragActive : dzFiles.isDragActive) ? "#C0392B" : "#ddd"}`,
+                  borderRadius: "12px", padding: "40px", textAlign: "center", cursor: "pointer",
+                  background: (useZip ? dzZip.isDragActive : dzFiles.isDragActive) ? "#FEF9F0" : "#fafafa",
+                  marginBottom: "14px", transition: "all 0.15s",
+                }}>
+                  <input {...(useZip ? dzZip.getInputProps() : dzFiles.getInputProps())} />
+                  <div style={{ fontSize: "32px", marginBottom: "10px" }}>
+                    {useZip ? (zipFile ? "📦" : "⬆️") : (files.length ? "📁" : "⬆️")}
                   </div>
-                ) : (
-                  <div {...dzFiles.getRootProps()} style={{
-                    border:`2px dashed ${dzFiles.isDragActive ? "#c8971e" : "rgba(255,255,255,0.12)"}`,
-                    borderRadius:"12px", padding:"40px", textAlign:"center", cursor:"pointer",
-                    background: dzFiles.isDragActive ? "rgba(200,151,30,0.05)" : "rgba(255,255,255,0.02)",
-                    marginBottom:"16px",
-                  }}>
-                    <input {...dzFiles.getInputProps()} />
-                    <div style={{ fontSize:"32px", marginBottom:"10px" }}>📁</div>
-                    <p style={{ color:"#e2e8f0", fontSize:"14px", marginBottom:"4px" }}>Arrastrá archivos o hacé click</p>
-                    <p style={{ color:"#4a5568", fontSize:"12px" }}>.html .css .js .json .csv .png .jpg .svg</p>
-                  </div>
-                )}
-
-                {!useZip && files.length > 0 && (
-                  <div style={{ ...C.card, marginBottom:"16px" }}>
-                    {files.map(f => (
-                      <div key={f.name} style={{ display:"flex", justifyContent:"space-between", padding:"3px 0", fontSize:"13px", color:"#8a9bb0" }}>
-                        <span>{f.name}</span><span>{(f.size/1024).toFixed(1)} KB</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                  {useZip ? (
+                    zipFile
+                      ? <p style={{ color: "#27AE60", fontSize: "14px", fontWeight: "600" }}>{zipFile.name} ({(zipFile.size / 1024).toFixed(1)} KB)</p>
+                      : <><p style={{ color: "#2C3E50", fontSize: "14px", marginBottom: "4px" }}>Arrastrá el ZIP o hacé click</p>
+                        <p style={{ color: "#aaa", fontSize: "12px" }}>El ZIP debe tener index.html en la raíz</p></>
+                  ) : (
+                    files.length
+                      ? files.map(f => <p key={f.name} style={{ color: "#2C3E50", fontSize: "13px", margin: "2px 0" }}>{f.name}</p>)
+                      : <><p style={{ color: "#2C3E50", fontSize: "14px", marginBottom: "4px" }}>Arrastrá archivos o hacé click</p>
+                        <p style={{ color: "#aaa", fontSize: "12px" }}>.html .css .js .json .csv .png .jpg .svg</p></>
+                  )}
+                </div>
               </>
             )}
 
-            {/* Embed / App */}
+            {/* Embed/App */}
             {(dtype === "embed" || dtype === "app") && (
-              <div style={{ marginBottom:"16px" }}>
-                <div style={{ marginBottom:"14px" }}>
-                  <label style={C.label}>{dtype === "embed" ? "URL del embed (Power BI, Excel Online...)" : "URL de la aplicación (Streamlit, Metabase...)"}</label>
-                  <input type="url" value={embedUrl} onChange={e => setEmbedUrl(e.target.value)} placeholder="https://..." style={C.input} />
+              <div style={{ marginBottom: "16px" }}>
+                <div style={{ marginBottom: "14px" }}>
+                  <label style={{ display: "block", fontSize: "11px", fontWeight: "700", color: "#7F8C8D", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                    {dtype === "embed" ? "URL del embed" : "URL de la aplicación"}
+                  </label>
+                  <input type="url" value={embedUrl} onChange={e => setEmbedUrl(e.target.value)}
+                    placeholder="https://..." style={{
+                      width: "100%", boxSizing: "border-box", background: "#fff",
+                      border: "1px solid #ddd", borderRadius: "8px", color: "#2C3E50",
+                      padding: "10px 12px", fontSize: "13px",
+                    }} />
                 </div>
                 <div>
-                  <label style={C.label}>Título del dashboard</label>
-                  <input type="text" value={embedTitle} onChange={e => setEmbedTitle(e.target.value)} placeholder={slug || "Nombre visible en el header"} style={C.input} />
-                </div>
-                <div style={{ marginTop:"12px", background:"rgba(139,92,246,0.08)", border:"1px solid rgba(139,92,246,0.2)", borderRadius:"8px", padding:"12px 14px" }}>
-                  <p style={{ color:"#a78bfa", fontSize:"12px" }}>
-                    Se va a generar un <strong>wrapper HTML</strong> con iframe + sandbox en <code style={{ background:"rgba(255,255,255,0.05)", padding:"1px 4px", borderRadius:"3px" }}>/{area}/{slug}/</code>.
-                    La URL original queda encapsulada con header de Bricchi.
-                  </p>
+                  <label style={{ display: "block", fontSize: "11px", fontWeight: "700", color: "#7F8C8D", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Título</label>
+                  <input type="text" value={embedTitle} onChange={e => setEmbedTitle(e.target.value)}
+                    placeholder={slug || "Nombre visible"} style={{
+                      width: "100%", boxSizing: "border-box", background: "#fff",
+                      border: "1px solid #ddd", borderRadius: "8px", color: "#2C3E50",
+                      padding: "10px 12px", fontSize: "13px",
+                    }} />
                 </div>
               </div>
             )}
 
             {error && (
-              <div style={{ background:"rgba(220,53,69,0.1)", border:"1px solid rgba(220,53,69,0.3)", borderRadius:"8px", padding:"12px 16px", color:"#ff8a8a", fontSize:"13px", marginBottom:"16px" }}>
+              <div style={{ background: "#FDF2F2", border: "1px solid #F5C6CB", borderRadius: "8px", padding: "12px 16px", color: "#C0392B", fontSize: "13px", marginBottom: "14px" }}>
                 ⚠️ {error}
               </div>
             )}
-
             {result && (
-              <div style={{ background:"rgba(34,197,94,0.1)", border:"1px solid rgba(34,197,94,0.3)", borderRadius:"8px", padding:"16px", marginBottom:"16px" }}>
-                <p style={{ color:"#4ade80", fontSize:"14px", fontWeight:"600", marginBottom:"6px" }}>✅ Publicado. Deploy en curso (~60s en Vercel)</p>
-                <a href={result.url} target="_blank" rel="noreferrer" style={{ color:"#c8971e", fontSize:"13px", wordBreak:"break-all" }}>{result.url}</a>
-                <p style={{ color:"#374151", fontSize:"11px", marginTop:"6px" }}>Commit: {result.commitSha.slice(0,8)}</p>
+              <div style={{ background: "#F0FFF4", border: "1px solid #9AE6B4", borderRadius: "8px", padding: "16px", marginBottom: "14px" }}>
+                <p style={{ color: "#27AE60", fontSize: "14px", fontWeight: "700", marginBottom: "6px" }}>✅ Publicado. Deploy en curso (~60s)</p>
+                <a href={result.url} target="_blank" rel="noreferrer" style={{ color: "#C0392B", fontSize: "13px" }}>{result.url}</a>
+                <p style={{ color: "#aaa", fontSize: "11px", marginTop: "4px" }}>Commit: {result.commitSha.slice(0, 8)}</p>
               </div>
             )}
 
             <button onClick={handleUpload} disabled={!canSubmit} style={{
-              width:"100%", padding:"14px", border:"none", borderRadius:"10px",
-              background: canSubmit ? "linear-gradient(135deg,#c8971e,#e8b840)" : "rgba(255,255,255,0.05)",
-              color: canSubmit ? "#1a1a1a" : "#4a5568",
-              fontSize:"15px", fontWeight:"700",
+              width: "100%", padding: "14px", border: "none", borderRadius: "10px",
+              background: canSubmit ? "#C0392B" : "#e8e8e8",
+              color: canSubmit ? "#fff" : "#aaa",
+              fontSize: "15px", fontWeight: "700",
               cursor: canSubmit ? "pointer" : "not-allowed",
+              transition: "background 0.15s",
             }}>
               {uploading ? "⏳ Publicando..." : "🚀 Publicar dashboard"}
             </button>
           </>
         )}
 
+        {/* ── AUDIT ── */}
         {tab === "audit" && (
           <>
-            <h2 style={{ fontSize:"22px", fontWeight:"700", marginBottom:"6px", color:"#f0e6d3" }}>Historial de publicaciones</h2>
-            <p style={{ color:"#6b7280", fontSize:"14px", marginBottom:"28px" }}>Registro completo — quién subió qué y cuándo.</p>
-
-            {loadingAudit ? <p style={{ color:"#4a5568" }}>Cargando...</p> :
-             auditLog.length === 0 ? <p style={{ color:"#4a5568" }}>No hay publicaciones aún.</p> : (
-              <div style={{ display:"flex", flexDirection:"column", gap:"10px" }}>
-                {auditLog.map(e => (
-                  <div key={e.id} style={C.card}>
-                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
-                      <div style={{ display:"flex", alignItems:"center", flexWrap:"wrap", gap:"4px" }}>
-                        <TypeBadge type={e.dashboard_type} />
-                        <span style={{ background:"rgba(200,151,30,0.15)", color:"#c8971e", fontSize:"11px", padding:"2px 8px", borderRadius:"4px" }}>{e.area}</span>
-                        <a href={e.dashboard_url} target="_blank" rel="noreferrer" style={{ color:"#e2e8f0", fontSize:"14px", fontWeight:"600", marginLeft:"4px" }}>{e.slug}</a>
+            <h2 style={{ fontSize: "20px", fontWeight: "700", color: "#2C3E50", marginBottom: "6px" }}>Historial de publicaciones</h2>
+            <p style={{ color: "#7F8C8D", fontSize: "13px", marginBottom: "24px" }}>Registro completo — quién publicó qué y cuándo.</p>
+            {loadingAudit ? <p style={{ color: "#aaa" }}>Cargando...</p> :
+              auditLog.length === 0 ? <p style={{ color: "#aaa" }}>No hay publicaciones aún.</p> : (
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                  {auditLog.map(e => (
+                    <div key={e.id} style={{
+                      background: "#fff", border: "1px solid #e8e8e8", borderRadius: "10px",
+                      padding: "14px 18px", borderLeft: "4px solid #C0392B",
+                    }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                          <span style={{ background: "#FDF2F2", color: "#C0392B", fontSize: "11px", padding: "2px 8px", borderRadius: "4px", fontWeight: "600" }}>
+                            {areaLabel(e.area)}
+                          </span>
+                          <a href={e.dashboard_url} target="_blank" rel="noreferrer"
+                            style={{ color: "#2C3E50", fontSize: "14px", fontWeight: "700" }}>{e.slug} ↗</a>
+                        </div>
+                        <span style={{ color: "#aaa", fontSize: "12px", whiteSpace: "nowrap", marginLeft: "8px" }}>
+                          {e.created_at ? formatDistanceToNow(new Date(e.created_at), { addSuffix: true, locale: es }) : "—"}
+                        </span>
                       </div>
-                      <span style={{ color:"#4a5568", fontSize:"12px", whiteSpace:"nowrap", marginLeft:"8px" }}>
-                        {e.created_at ? formatDistanceToNow(new Date(e.created_at), { addSuffix:true, locale:es }) : "—"}
-                      </span>
+                      <div style={{ marginTop: "6px", display: "flex", gap: "16px", flexWrap: "wrap" }}>
+                        <span style={{ color: "#7F8C8D", fontSize: "12px" }}>👤 {e.uploader_name}</span>
+                        <span style={{ color: "#7F8C8D", fontSize: "12px" }}>📄 {e.filename}</span>
+                        <span style={{ color: "#bbb", fontSize: "11px", fontFamily: "monospace" }}>{e.github_commit_sha?.slice(0, 8)}</span>
+                      </div>
                     </div>
-                    <div style={{ marginTop:"8px", display:"flex", gap:"16px", flexWrap:"wrap" }}>
-                      <span style={{ color:"#6b7280", fontSize:"12px" }}>👤 {e.uploader_name}</span>
-                      <span style={{ color:"#6b7280", fontSize:"12px" }}>📄 {e.filename}{e.assets_count > 0 && ` + ${e.assets_count} assets`}</span>
-                      <span style={{ color:"#374151", fontSize:"11px", fontFamily:"monospace" }}>{e.github_commit_sha?.slice(0,8)}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
           </>
         )}
       </main>
