@@ -1,18 +1,18 @@
 import NextAuth, { NextAuthOptions } from "next-auth";
 import EmailProvider from "next-auth/providers/email";
+import { SupabaseAdapter } from "@auth/supabase-adapter";
 import { createTransport } from "nodemailer";
 
-const ALLOWED_EMAILS = (process.env.ALLOWED_EMAILS || "")
-  .split(",")
-  .map((e) => e.trim().toLowerCase())
-  .filter(Boolean);
-
 export const authOptions: NextAuthOptions = {
+  adapter: SupabaseAdapter({
+    url: process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    secret: process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  }),
   providers: [
     EmailProvider({
       server: {
         host: process.env.EMAIL_SERVER_HOST,
-        port: Number(process.env.EMAIL_SERVER_PORT || 587),
+        port: Number(process.env.EMAIL_SERVER_PORT || 465),
         auth: {
           user: process.env.EMAIL_SERVER_USER,
           pass: process.env.EMAIL_SERVER_PASSWORD,
@@ -45,8 +45,12 @@ export const authOptions: NextAuthOptions = {
   ],
   callbacks: {
     async signIn({ user }) {
+      const ALLOWED_EMAILS = (process.env.ALLOWED_EMAILS || "")
+        .split(",")
+        .map((e) => e.trim().toLowerCase())
+        .filter(Boolean);
       const email = user.email?.toLowerCase() || "";
-      return true; // temp: whitelist bypass for testing
+      return ALLOWED_EMAILS.includes(email);
     },
     async session({ session, token }) {
       if (session.user) {
@@ -55,7 +59,7 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
   },
-  session: { strategy: "jwt" },
+  session: { strategy: "database" },
   pages: {
     signIn: "/login",
     verifyRequest: "/login?verify=1",
