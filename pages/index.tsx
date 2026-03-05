@@ -218,7 +218,7 @@ export default function Home() {
                     <option key={a.value} value={a.value} style={{ background:"#1a2940" }}>{a.label}</option>
                   ))}
                   {(() => {
-                    const groups = [...new Set(AREAS.filter(a => a.group).map(a => a.group))];
+                    const groups = Array.from(new Set(AREAS.filter(a => a.group).map(a => a.group)));
                     return groups.map(g => (
                       <optgroup key={g} label={g!} style={{ background:"#1a2940" }}>
                         {AREAS.filter(a => a.group === g).map(a => (
