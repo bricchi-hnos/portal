@@ -11,8 +11,6 @@ function headers() {
     "apikey": SERVICE_KEY,
     "Authorization": `Bearer ${SERVICE_KEY}`,
     "Content-Type": "application/json",
-    "Accept-Profile": "portal",
-    "Content-Profile": "portal",
   };
 }
 
@@ -22,9 +20,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(403).json({ error: "Sin permisos" });
   }
 
+  // GET — todos los permisos actuales
   if (req.method === "GET") {
     const r = await fetch(
-      `${SUPABASE_URL}/rest/v1/usuario_modulos?select=usuario_id,modulo_id,habilitado`,
+      `${SUPABASE_URL}/rest/v1/dashboard_permisos?select=usuario_id,dashboard_id,habilitado`,
       { headers: headers() }
     );
     const data = await r.json();
@@ -32,12 +31,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.json(data);
   }
 
+  // POST — toggle permiso
   if (req.method === "POST") {
-    const { usuario_id, modulo_id, habilitado } = req.body;
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/usuario_modulos`, {
+    const { usuario_id, dashboard_id, habilitado } = req.body;
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/dashboard_permisos`, {
       method: "POST",
       headers: { ...headers(), "Prefer": "resolution=merge-duplicates,return=minimal" },
-      body: JSON.stringify({ usuario_id, modulo_id, habilitado }),
+      body: JSON.stringify({ usuario_id, dashboard_id, habilitado }),
     });
     if (!r.ok) {
       const data = await r.json();
