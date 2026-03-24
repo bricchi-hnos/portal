@@ -153,7 +153,13 @@ export default function Home() {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           <span style={{ fontSize: "13px", color: "#7F8C8D" }}>{session.user?.name || session.user?.email}</span>
-          <button onClick={() => signOut({ callbackUrl: "/login" })} style={{
+          {session.user?.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL && (
+  <a href="/admin" style={{
+    fontSize: "13px", color: "#C0392B", textDecoration: "none",
+    fontWeight: "600", padding: "6px 14px",
+    border: "1px solid #C0392B", borderRadius: "6px",
+  }}>⚙️ Admin</a>
+)}<button onClick={() => signOut({ callbackUrl: "/login" })} style={{
             background: "transparent", border: "1px solid #ddd", borderRadius: "6px",
             color: "#7F8C8D", padding: "6px 14px", fontSize: "12px", cursor: "pointer",
           }}>Salir</button>
