@@ -144,8 +144,9 @@ export default function AdminPage() {
         boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-          <img src={LOGO_URL} alt="Bricchi Hnos." style={{ height: "36px", objectFit: "contain" }}
-            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+          <span style={{ fontSize: "16px", fontWeight: "800", color: "#C0392B", letterSpacing: "0.5px" }}>
+  BRICCHI HNOS.
+</span>
           <div style={{ width: "1px", height: "28px", background: "#e0e0e0" }} />
           <span style={{ fontSize: "14px", fontWeight: "600", color: "#2C3E50" }}>
             Admin — Usuarios y Permisos
