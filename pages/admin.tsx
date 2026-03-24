@@ -145,7 +145,7 @@ export default function AdminPage() {
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
           <span style={{ fontSize: "16px", fontWeight: "800", color: "#C0392B", letterSpacing: "0.5px" }}>
-  BRICCHI HNOS.
+  BRICCHI HNOS S.A.
 </span>
           <div style={{ width: "1px", height: "28px", background: "#e0e0e0" }} />
           <span style={{ fontSize: "14px", fontWeight: "600", color: "#2C3E50" }}>
