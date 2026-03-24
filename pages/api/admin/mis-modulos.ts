@@ -1,15 +1,20 @@
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
-import { createClient } from "@supabase/supabase-js";
 import type { NextApiRequest, NextApiResponse } from "next";
 
-const supabasePortal = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { db: { schema: "portal" } }
-);
-
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "nicolas@bricchihnos.com";
+
+function headers() {
+  return {
+    "apikey": SERVICE_KEY,
+    "Authorization": `Bearer ${SERVICE_KEY}`,
+    "Content-Type": "application/json",
+    "Accept-Profile": "portal",
+    "Content-Profile": "portal",
+  };
+}
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const session = await getServerSession(req, res, authOptions);
@@ -19,36 +24,39 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   // Admin ve todos los módulos
   if (session.user.email === ADMIN_EMAIL) {
-    const { data, error } = await supabasePortal
-      .from("modulos")
-      .select("id, slug, nombre, url, icono, orden")
-      .eq("activo", true)
-      .order("orden");
-    if (error) return res.status(500).json({ error: error.message });
+    const r = await fetch(
+      `${SUPABASE_URL}/rest/v1/modulos?select=id,slug,nombre,url,icono,orden&activo=eq.true&order=orden.asc`,
+      { headers: headers() }
+    );
+    const data = await r.json();
+    if (!r.ok) return res.status(500).json({ error: data.message || "Error" });
     return res.json(data);
   }
 
-  // Usuarios normales: solo los módulos habilitados para ellos
-  const { data: usuario } = await supabasePortal
-    .from("usuarios")
-    .select("id")
-    .eq("email", session.user.email)
-    .single();
+  // Buscar usuario
+  const rUser = await fetch(
+    `${SUPABASE_URL}/rest/v1/usuarios?email=eq.${encodeURIComponent(session.user.email)}&select=id`,
+    { headers: headers() }
+  );
+  const usuarios = await rUser.json();
+  if (!rUser.ok || !usuarios.length) return res.json([]);
 
-  if (!usuario) return res.json([]);
+  const usuario_id = usuarios[0].id;
 
-  const { data, error } = await supabasePortal
-    .from("usuario_modulos")
-    .select("modulo_id, modulos(id, slug, nombre, url, icono, orden)")
-    .eq("usuario_id", usuario.id)
-    .eq("habilitado", true);
+  // Buscar módulos habilitados
+  const rPermisos = await fetch(
+    `${SUPABASE_URL}/rest/v1/usuario_modulos?usuario_id=eq.${usuario_id}&habilitado=eq.true&select=modulo_id`,
+    { headers: headers() }
+  );
+  const permisos = await rPermisos.json();
+  if (!rPermisos.ok || !permisos.length) return res.json([]);
 
-  if (error) return res.status(500).json({ error: error.message });
-
-  const modulos = (data || [])
-    .map((r: any) => r.modulos)
-    .filter(Boolean)
-    .sort((a: any, b: any) => a.orden - b.orden);
-
+  const ids = permisos.map((p: any) => p.modulo_id).join(",");
+  const rModulos = await fetch(
+    `${SUPABASE_URL}/rest/v1/modulos?id=in.(${ids})&activo=eq.true&select=id,slug,nombre,url,icono,orden&order=orden.asc`,
+    { headers: headers() }
+  );
+  const modulos = await rModulos.json();
+  if (!rModulos.ok) return res.status(500).json({ error: modulos.message || "Error" });
   return res.json(modulos);
 }

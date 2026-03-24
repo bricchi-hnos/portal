@@ -1,15 +1,20 @@
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
-import { createClient } from "@supabase/supabase-js";
 import type { NextApiRequest, NextApiResponse } from "next";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { db: { schema: "portal" } }
-);
-
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "nicolas@bricchihnos.com";
+
+function headers() {
+  return {
+    "apikey": SERVICE_KEY,
+    "Authorization": `Bearer ${SERVICE_KEY}`,
+    "Content-Type": "application/json",
+    "Accept-Profile": "portal",
+    "Content-Profile": "portal",
+  };
+}
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const session = await getServerSession(req, res, authOptions);
@@ -18,19 +23,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   if (req.method === "GET") {
-    const { data, error } = await supabase
-      .from("usuario_modulos")
-      .select("usuario_id, modulo_id, habilitado");
-    if (error) return res.status(500).json({ error: error.message });
+    const r = await fetch(
+      `${SUPABASE_URL}/rest/v1/usuario_modulos?select=usuario_id,modulo_id,habilitado`,
+      { headers: headers() }
+    );
+    const data = await r.json();
+    if (!r.ok) return res.status(500).json({ error: data.message || "Error" });
     return res.json(data);
   }
 
   if (req.method === "POST") {
     const { usuario_id, modulo_id, habilitado } = req.body;
-    const { error } = await supabase
-      .from("usuario_modulos")
-      .upsert({ usuario_id, modulo_id, habilitado }, { onConflict: "usuario_id,modulo_id" });
-    if (error) return res.status(500).json({ error: error.message });
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/usuario_modulos`, {
+      method: "POST",
+      headers: { ...headers(), "Prefer": "resolution=merge-duplicates,return=minimal" },
+      body: JSON.stringify({ usuario_id, modulo_id, habilitado }),
+    });
+    if (!r.ok) {
+      const data = await r.json();
+      return res.status(500).json({ error: data.message || "Error" });
+    }
     return res.json({ ok: true });
   }
 
