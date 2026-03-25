@@ -111,11 +111,11 @@ export default function Home() {
   }
 
   async function loadAudit() {
-    setLoadingAudit(true);
-    try { const r = await fetch("/api/audit"); setAuditLog(await r.json()); }
-    catch { setAuditLog([]); }
-    finally { setLoadingAudit(false); }
-  }
+  setLoadingAudit(true);
+  try { const r = await fetch("/api/admin/mis-dashboards"); setAuditLog(await r.json()); }
+  catch { setAuditLog([]); }
+  finally { setLoadingAudit(false); }
+   }
   useEffect(() => { if (tab === "audit") loadAudit(); if (tab === "home") loadAudit(); }, [tab]);
 
   const canSubmit = !uploading && !!slug && (
