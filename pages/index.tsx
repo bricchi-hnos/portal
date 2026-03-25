@@ -11,6 +11,7 @@ const DASHBOARDS_BASE = "https://dashboards-br.vercel.app";
 const AREAS = [
   { value: "maquinarias",                label: "Maquinarias",   icon: "🚜", group: null },
   { value: "repuestos",                  label: "Repuestos",     icon: "🔧", group: null },
+  { value: "comercial",                  label: "Comercial",     icon: "💼", group: null },
   { value: "administracion/contable",    label: "Contable",      icon: "📒", group: "Administración" },
   { value: "administracion/financiera",  label: "Financiera",    icon: "📊", group: "Administración" },
   { value: "administracion/impositiva",  label: "Impositiva",    icon: "🧾", group: "Administración" },
